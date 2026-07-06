@@ -26,7 +26,8 @@ def test_install_desktop_runtime_preserves_existing_cors_values(monkeypatch):
     origins = os.environ[DESKTOP_CORS_ORIGINS_ENV].split(",")
     assert origins.count("tauri://localhost") == 1
     assert "https://example.test" in origins
-    assert "http://127.0.0.1:5173" not in origins
+    assert origins.count("http://localhost:5173") == 1
+    assert origins.count("http://127.0.0.1:5173") == 1
 
 
 def test_ensure_qwenpaw_app_not_loaded_rejects_late_cors(monkeypatch):

@@ -10,35 +10,27 @@ use tauri_plugin_shell::{process::Command, ShellExt};
 
 /// Builds the command used to start the Python backend sidecar.
 #[cfg(debug_assertions)]
+const PREFERRED_DEV_PYTHON: &str = "/Users/admin/workers/be/python/alicopaw_env/bin/python";
+
+#[cfg(debug_assertions)]
 pub(super) fn create(app: &tauri::AppHandle) -> Result<Command, String> {
     let repo_root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../..");
     let source_path = repo_root.join("src");
-    let command = if command_exists("uv") {
-        log::info!(
-            "[backend] dev command: uv run python -m qwenpaw.tauri.entry cwd={}",
-            repo_root.display(),
-        );
-        app.shell()
-            .command("uv")
-            .args(["run", "python", "-m", "qwenpaw.tauri.entry"])
-            .current_dir(repo_root)
-            .env("PYTHONPATH", source_path.display().to_string())
-    } else {
-        let (python, prefix_args) = python_command(&repo_root);
-        let mut args = prefix_args;
-        args.extend(["-m", "qwenpaw.tauri.entry"]);
-        log::info!(
-            "[backend] dev command: {} {} cwd={}",
-            python,
-            args.join(" "),
-            repo_root.display(),
-        );
-        app.shell()
-            .command(python)
-            .args(args)
-            .current_dir(repo_root)
-            .env("PYTHONPATH", source_path.display().to_string())
-    };
+    let (python, prefix_args) = python_command(&repo_root);
+    let mut args = prefix_args;
+    args.extend(["-m", "qwenpaw.tauri.entry"]);
+    log::info!(
+        "[backend] dev command: {} {} cwd={}",
+        python,
+        args.join(" "),
+        repo_root.display(),
+    );
+    let command = app
+        .shell()
+        .command(python)
+        .args(args)
+        .current_dir(repo_root)
+        .env("PYTHONPATH", source_path.display().to_string());
     Ok(apply_contributed_environment(app, command))
 }
 
@@ -208,6 +200,11 @@ fn command_exists(command: &str) -> bool {
 
 #[cfg(debug_assertions)]
 fn local_python(repo_root: &Path) -> Option<String> {
+    let preferred = PathBuf::from(PREFERRED_DEV_PYTHON);
+    if preferred.is_file() {
+        return Some(preferred.display().to_string());
+    }
+
     let candidates = if cfg!(windows) {
         vec![
             repo_root.join(".venv/Scripts/python.exe"),

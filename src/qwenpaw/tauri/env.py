@@ -17,6 +17,8 @@ DESKTOP_CORS_ORIGINS = (
     "tauri://localhost",
     "https://tauri.localhost",
     "http://tauri.localhost",
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
 )
 
 
