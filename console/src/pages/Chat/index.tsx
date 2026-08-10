@@ -801,39 +801,84 @@ function sanitizeHeadlinePayload(
 // Custom hooks
 // ---------------------------------------------------------------------------
 
+/** Whether the event target is the chat sender editable (textarea or rich editor). */
+function isSenderEditableTarget(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement)) return false;
+  if (!target.closest('[class*="sender"]')) return false;
+  return (
+    target.tagName === "TEXTAREA" ||
+    target.tagName === "INPUT" ||
+    target.isContentEditable ||
+    target.getAttribute("contenteditable") === "true"
+  );
+}
+
 /** Handle IME composition events to prevent premature Enter key submission. */
 function useIMEComposition(isChatActive: () => boolean) {
   const isComposingRef = useRef(false);
 
   useEffect(() => {
-    const handleCompositionStart = () => {
+    let clearTimer: ReturnType<typeof setTimeout> | null = null;
+    let activeTarget: HTMLElement | null = null;
+
+    const clearComposing = () => {
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      isComposingRef.current = false;
+      if (activeTarget) {
+        activeTarget.removeEventListener("blur", handleTargetBlur, true);
+        activeTarget = null;
+      }
+    };
+
+    // Lexical / WKWebView 偶发丢 compositionend；输入框失焦时必须释放，
+    // 否则 isComposingRef 会永久为 true，beforeSubmit 直接 return false，表现为点发送无反应。
+    const handleTargetBlur = () => {
+      clearComposing();
+    };
+
+    const handleCompositionStart = (e: CompositionEvent) => {
       if (!isChatActive()) return;
+      if (!isSenderEditableTarget(e.target)) return;
+      if (clearTimer) {
+        clearTimeout(clearTimer);
+        clearTimer = null;
+      }
+      if (activeTarget && activeTarget !== e.target) {
+        activeTarget.removeEventListener("blur", handleTargetBlur, true);
+      }
+      activeTarget = e.target as HTMLElement;
+      activeTarget.addEventListener("blur", handleTargetBlur, true);
       isComposingRef.current = true;
     };
 
-    const handleCompositionEnd = () => {
+    const handleCompositionEnd = (e: CompositionEvent) => {
       if (!isChatActive()) return;
+      if (!isSenderEditableTarget(e.target)) return;
       // Small delay for Safari on macOS, which fires keydown after
       // compositionend within the same event loop tick.  Keep this as
       // short as possible so fast typists who hit Space+Enter in quick
       // succession are not blocked.
-      setTimeout(() => {
-        isComposingRef.current = false;
+      if (clearTimer) clearTimeout(clearTimer);
+      clearTimer = setTimeout(() => {
+        clearTimer = null;
+        clearComposing();
       }, 50);
     };
 
     const suppressImeEnter = (e: KeyboardEvent) => {
       if (!isChatActive()) return;
-      const target = e.target as HTMLElement;
-      if (target?.tagName === "TEXTAREA" && e.key === "Enter" && !e.shiftKey) {
-        // e.isComposing is the standard flag; isComposingRef covers the
-        // post-compositionend grace period needed by Safari.
-        if (isComposingRef.current || e.isComposing) {
-          e.stopPropagation();
-          e.stopImmediatePropagation();
-          e.preventDefault();
-          return false;
-        }
+      if (e.key !== "Enter" || e.shiftKey) return;
+      if (!isSenderEditableTarget(e.target)) return;
+      // e.isComposing is the standard flag; isComposingRef covers the
+      // post-compositionend grace period needed by Safari.
+      if (isComposingRef.current || e.isComposing) {
+        e.stopPropagation();
+        e.stopImmediatePropagation();
+        e.preventDefault();
+        return false;
       }
     };
 
@@ -844,6 +889,7 @@ function useIMEComposition(isChatActive: () => boolean) {
     document.addEventListener("keypress", suppressImeEnter, true);
 
     return () => {
+      clearComposing();
       document.removeEventListener(
         "compositionstart",
         handleCompositionStart,
@@ -3603,11 +3649,15 @@ export default function ChatPage() {
     const handleBeforeSubmit = async (
       data: IAgentScopeRuntimeWebUIInputData,
     ): Promise<boolean | IAgentScopeRuntimeWebUISenderBeforeSubmitResult> => {
-      if (
-        isComposingRef.current ||
-        isAgentTransition ||
-        !sdkSessionAdapter.isReady(chatIdRef.current)
-      )
+      // 点击发送时焦点常已离开输入框；若 IME 标记仍卡住会静默拦截发送且不清空输入。
+      // 焦点已不在 sender 可编辑区时，视为 composition 已结束并放行。
+      if (isComposingRef.current) {
+        if (isSenderEditableTarget(document.activeElement)) {
+          return false;
+        }
+        isComposingRef.current = false;
+      }
+      if (isAgentTransition || !sdkSessionAdapter.isReady(chatIdRef.current))
         return false;
       // Capture the original route and input before checking backend status.
       // SDK 1.2 owns submission cancellation; the host owns queued snapshots.

@@ -13,6 +13,7 @@ import {
   KEY_ENTER_COMMAND,
   PASTE_COMMAND,
   type EditorConfig,
+  type EditorState,
   type LexicalEditor,
   type LexicalNode,
   type NodeKey,
@@ -357,6 +358,10 @@ function nodeRawSize(node: LexicalNode) {
   return node.getTextContent().length;
 }
 
+// 受控 value → Lexical 的外部同步标记。OnChange 必须忽略带此 tag 的更新，
+// 否则会经 setTextareaValue 回写父级 value，再触发 useLayoutEffect，形成死循环。
+const EXTERNAL_SYNC_TAG = "qwenpaw-rich-input-sync";
+
 function selectionPointOffset(targetKey: string, targetOffset: number): number {
   let rawOffset = 0;
   let resolved: number | null = null;
@@ -411,6 +416,8 @@ function RichEditorBridge({
   const valueRef = useRef(value);
   valueRef.current = value;
   editorRef.current = editor;
+  // 外部同步进行中时跳过 OnChange 回写，切断 value ↔ editor 的同步环
+  const syncingFromPropsRef = useRef(false);
 
   useEffect(() => {
     editor.setEditable(editable);
@@ -421,10 +428,19 @@ function RichEditorBridge({
       .getEditorState()
       .read(() => $getRoot().getTextContent());
     if (current === value) return;
-    editor.update(() => {
-      replaceEditorValue(value);
-      selectRawOffset(hiddenTextarea.current?.selectionStart ?? value.length);
-    });
+    syncingFromPropsRef.current = true;
+    editor.update(
+      () => {
+        replaceEditorValue(value);
+        selectRawOffset(hiddenTextarea.current?.selectionStart ?? value.length);
+      },
+      {
+        tag: EXTERNAL_SYNC_TAG,
+        onUpdate: () => {
+          syncingFromPropsRef.current = false;
+        },
+      },
+    );
   }, [editor, hiddenTextarea, value]);
 
   useEffect(
@@ -434,34 +450,43 @@ function RichEditorBridge({
     [editor, editorRef],
   );
 
+  const handleChange = useCallback(
+    (editorState: EditorState, _nextEditor: LexicalEditor, tags: Set<string>) => {
+      if (syncingFromPropsRef.current || tags.has(EXTERNAL_SYNC_TAG)) {
+        return;
+      }
+      editorState.read(() => {
+        const raw = $getRoot().getTextContent();
+        const selection = $getSelection();
+        let start = raw.length;
+        let end = raw.length;
+        if ($isRangeSelection(selection)) {
+          start = selectionPointOffset(
+            selection.anchor.key,
+            selection.anchor.offset,
+          );
+          end = selectionPointOffset(
+            selection.focus.key,
+            selection.focus.offset,
+          );
+          if (start > end) [start, end] = [end, start];
+        }
+        if (raw !== valueRef.current) {
+          onRawChange(raw, start, end);
+        } else if (hiddenTextarea.current) {
+          hiddenTextarea.current.selectionStart = start;
+          hiddenTextarea.current.selectionEnd = end;
+        }
+      });
+    },
+    [hiddenTextarea, onRawChange],
+  );
+
   return (
     <OnChangePlugin
-      ignoreSelectionChange={false}
-      onChange={(editorState) => {
-        editorState.read(() => {
-          const raw = $getRoot().getTextContent();
-          const selection = $getSelection();
-          let start = raw.length;
-          let end = raw.length;
-          if ($isRangeSelection(selection)) {
-            start = selectionPointOffset(
-              selection.anchor.key,
-              selection.anchor.offset,
-            );
-            end = selectionPointOffset(
-              selection.focus.key,
-              selection.focus.offset,
-            );
-            if (start > end) [start, end] = [end, start];
-          }
-          if (raw !== valueRef.current) {
-            onRawChange(raw, start, end);
-          } else if (hiddenTextarea.current) {
-            hiddenTextarea.current.selectionStart = start;
-            hiddenTextarea.current.selectionEnd = end;
-          }
-        });
-      }}
+      // 纯选区变化不回写受控 value，避免与外部同步互相踢腿
+      ignoreSelectionChange
+      onChange={handleChange}
     />
   );
 }
@@ -669,6 +694,10 @@ const RichFileReferenceInput = forwardRef<unknown, TextAreaProps>(
             nodes: [FileReferenceNode, CodeSnippetNode],
             onError(error) {
               throw error;
+            },
+            // 级联更新守卫属于可恢复告警；dev 默认 throw 会放大卡顿，这里降为 warn
+            onWarn(error) {
+              console.warn(error);
             },
             theme: {
               paragraph: styles.paragraph,
