@@ -429,6 +429,27 @@ describe("patchLastUserMessage — pending cache lifecycle", () => {
     expect(localStorage.getItem(`${STORAGE_PREFIX}chat-substr`)).not.toBe(null);
   });
 
+  it("does not append a harness turn that was saved without a client id", async () => {
+    seedSessionList("chat-harness");
+    sessionApi.setLastUserMessage(
+      "chat-harness",
+      "你是什么agent",
+      undefined,
+      "client-harness",
+    );
+    await mockGetChat({
+      messages: [
+        userMsg("u1", "你是什么agent"),
+        assistantMsg("a1", "我是 Claude Code"),
+      ],
+      status: "idle",
+    } as ChatHistory);
+
+    const session = await sessionApi.getSession("chat-harness");
+    expect(userCardTexts(session)).toEqual(["你是什么agent"]);
+    expect(localStorage.getItem(`${STORAGE_PREFIX}chat-harness`)).toBe(null);
+  });
+
   it("keeps an identical pending prompt when its client id is newer", async () => {
     seedSessionList("chat-repeat");
     sessionApi.setLastUserMessage(

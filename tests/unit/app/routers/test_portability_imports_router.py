@@ -95,6 +95,7 @@ async def test_sources_probe_only_returns_detection(monkeypatch):
 
     assert result == [
         {"source": "codex", "name": "Codex", "detected": True},
+        {"source": "claude", "name": "Claude Code", "detected": False},
         {"source": "qoder", "name": "Qoder", "detected": False},
     ]
     assert "/secret" not in str(result)

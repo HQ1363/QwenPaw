@@ -90,7 +90,9 @@ async def list_import_sources(request: Request) -> list[dict]:
         result.append(
             {
                 "source": source,
-                "name": source.title(),
+                "name": {
+                    "claude": "Claude Code",
+                }.get(source, source.title()),
                 "detected": bool(
                     location.data_home_exists
                     or location.user_data_home_exists

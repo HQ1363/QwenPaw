@@ -14,6 +14,8 @@ from .qoder_sessions import default_qoder_user_data
 _ALIASES = {
     "codex": "codex",
     "openai-codex": "codex",
+    "claude": "claude",
+    "claude-code": "claude",
     "qoder": "qoder",
 }
 
@@ -24,7 +26,7 @@ def canonical_provider_id(source: str) -> str:
     if provider_id is None:
         raise ValueError(
             f"Unsupported import source {source!r}. Supported providers: "
-            "codex, qoder.",
+            "codex, claude, qoder.",
         )
     return provider_id
 
@@ -72,6 +74,20 @@ def resolve_source_location(
             environment=environment,
             variable="CODEX_HOME",
             fallback=home / ".codex",
+        )
+        return SourceLocation(
+            provider_id=provider_id,
+            data_home=str(data_home),
+            data_home_source=data_source,
+            data_home_exists=data_home.is_dir(),
+        )
+
+    if provider_id == "claude":
+        data_home, data_source = _configured_root(
+            explicit=source_home,
+            environment=environment,
+            variable="CLAUDE_CONFIG_DIR",
+            fallback=home / ".claude",
         )
         return SourceLocation(
             provider_id=provider_id,

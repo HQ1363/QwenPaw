@@ -6,6 +6,7 @@ from __future__ import annotations
 from typing import Any
 
 from .base import MigrationProvider
+from .claude import ClaudeMigrationProvider
 from .codex import CodexMigrationProvider
 from .locator import canonical_provider_id, resolve_source_location
 from .qoder import QoderMigrationProvider
@@ -13,7 +14,7 @@ from .qoder import QoderMigrationProvider
 
 def provider_names() -> tuple[str, ...]:
     """Return canonical source names currently supported for migration."""
-    return ("codex", "qoder")
+    return ("codex", "claude", "qoder")
 
 
 def create_migration_provider(
@@ -25,6 +26,8 @@ def create_migration_provider(
     location = resolve_source_location(provider_id)
     if provider_id == "codex":
         return CodexMigrationProvider(workspace, source_location=location)
+    if provider_id == "claude":
+        return ClaudeMigrationProvider(workspace, source_location=location)
     if provider_id == "qoder":
         return QoderMigrationProvider(workspace, source_location=location)
     raise AssertionError(f"Unreachable provider id: {provider_id}")

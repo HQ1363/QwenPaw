@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from .base import HarnessAdapter, MissingDependencyAdapter
+from .claude.adapter import ClaudeAdapter
 from .codex.adapter import CodexAdapter
 from .events import (
     HarnessApprovalPreset,
@@ -113,8 +114,46 @@ PROVIDER_CATALOG = (
     ProviderCatalogItem(
         "claude",
         "Claude Code",
-        True,
-        HarnessCapabilities(),
+        False,
+        HarnessCapabilities(
+            authentication=True,
+            tool_stream=True,
+            session_resume=True,
+            qwenpaw_mcp_projection=True,
+            provider_skills_discovery=True,
+            approval_presets=[
+                HarnessApprovalPreset(
+                    id="ask",
+                    name="Ask before actions",
+                    description=(
+                        "Ask Claude Code before file changes and commands."
+                    ),
+                    settings={"permission_mode": "default"},
+                ),
+                HarnessApprovalPreset(
+                    id="accept-edits",
+                    name="Accept edits",
+                    description=(
+                        "Allow file edits while preserving command safeguards."
+                    ),
+                    settings={"permission_mode": "acceptEdits"},
+                ),
+                HarnessApprovalPreset(
+                    id="plan",
+                    name="Plan only",
+                    description="Analyze and plan without changing files.",
+                    settings={"permission_mode": "plan"},
+                ),
+                HarnessApprovalPreset(
+                    id="full-access",
+                    name="Full access",
+                    description=(
+                        "Skip permission checks in a trusted workspace."
+                    ),
+                    settings={"permission_mode": "bypassPermissions"},
+                ),
+            ],
+        ),
     ),
     ProviderCatalogItem(
         "qoder",
@@ -198,7 +237,7 @@ def adapter_config_key(
 ) -> tuple[Any, ...]:
     """Return settings that require recreating one provider adapter."""
     values = settings or {}
-    if provider_id in {"codex", "qoder"}:
+    if provider_id in {"codex", "claude", "qoder"}:
         return (str(values.get("binary") or "").strip(),)
     return ()
 
@@ -212,6 +251,9 @@ def create_adapter(
     if provider_id == "codex":
         binary = str((settings or {}).get("binary") or "").strip() or None
         return CodexAdapter(state_dir=state_dir, binary=binary)
+    if provider_id == "claude":
+        binary = str((settings or {}).get("binary") or "").strip() or None
+        return ClaudeAdapter(state_dir=state_dir, binary=binary)
     if provider_id == "qoder":
         binary = str((settings or {}).get("binary") or "").strip() or None
         try:

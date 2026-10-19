@@ -1077,14 +1077,19 @@ class SessionApi implements IAgentScopeRuntimeWebUISessionAPI {
     // generation completed but the memory flush not finished.
     if (!generating) {
       let lastUserText = "";
+      let lastUserClientId: string | undefined;
       for (let i = messages.length - 1; i >= 0; i--) {
         if (messages[i].role !== ROLE_USER) continue;
         const input = messages[i]?.cards?.[0]?.data?.input?.[0];
         lastUserText = extractTextFromContent(input?.content);
+        lastUserClientId = extractClientMessageId(input?.metadata);
         break;
       }
+      const textMatches = lastUserText.trim() === cached.text.trim();
+      // 第三方 runtime 的旧记录没有客户端消息 ID。文本完全一致时，这条待发送
+      // 消息已经在历史里，不能再追加到回复后面。带有其他 ID 的相同文本仍是新请求。
       const persistenceConfirmed =
-        !cached.clientMessageId && lastUserText.trim() === cached.text.trim();
+        textMatches && (!cached.clientMessageId || !lastUserClientId);
       if (persistenceConfirmed) {
         pendingIds.forEach(clearPendingUserMessage);
         return false;

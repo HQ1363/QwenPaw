@@ -1,4 +1,4 @@
-export type ImportSource = "codex" | "qoder";
+export type ImportSource = "codex" | "claude" | "qoder";
 export type ImportAssetType = "memory" | "cron" | "skill" | "mcp" | "plugin";
 export type ImportAssetState =
   | "pending"

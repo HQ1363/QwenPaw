@@ -32,7 +32,7 @@ from .selection import (
     validate_plan_selection,
 )
 
-_SUPPORTED_SOURCES = {"codex", "qoder"}
+_SUPPORTED_SOURCES = {"codex", "claude", "qoder"}
 _TERMINAL = {"completed", "completed_with_issues", "failed", "interrupted"}
 _CANCEL_GRACE_SECONDS = 3
 _MAX_TERMINAL_JOBS = 16
@@ -130,7 +130,7 @@ class PortabilityImportJobManager:
         if not normalized or any(
             item not in _SUPPORTED_SOURCES for item in normalized
         ):
-            raise ValueError("sources must contain codex or qoder")
+            raise ValueError("sources must contain codex, claude, or qoder")
         job_id = f"import-{uuid4().hex}"
         snapshot = ImportRun(
             job_id=job_id,

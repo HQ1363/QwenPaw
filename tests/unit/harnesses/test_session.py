@@ -7,6 +7,7 @@ import pytest
 from agentscope.state import AgentState
 
 from qwenpaw.app.chats.session import SafeJSONSession
+from qwenpaw.constant import QWENPAW_CLIENT_MESSAGE_ID_KEY
 from qwenpaw.app.chats.utils import agentscope_msg_to_message
 from qwenpaw.harnesses.session import HarnessSessionBridge
 from qwenpaw.schemas import (
@@ -38,6 +39,9 @@ async def test_bridge_persists_refreshable_reasoning_and_tools(
             Message(
                 role=Role.USER,
                 content=[TextContent(text="Fix it")],
+                metadata={
+                    QWENPAW_CLIENT_MESSAGE_ID_KEY: "client-1",
+                },
             ),
         ],
     )
@@ -107,6 +111,9 @@ async def test_bridge_persists_refreshable_reasoning_and_tools(
         MessageType.PLUGIN_CALL_OUTPUT,
         MessageType.MESSAGE,
     ]
+    assert restored[0].metadata["metadata"][QWENPAW_CLIENT_MESSAGE_ID_KEY] == (
+        "client-1"
+    )
     assert restored[1].content[0].text == "Checking"
     assert restored[3].content[0].data["output"] == "1 passed"
 

@@ -12,6 +12,7 @@ from agentscope.message import Msg
 from agentscope.state import AgentState
 
 from ..runtime._state_utils import StateProxy
+from ..runtime.message_convert import _request_message_metadata
 from ..schemas import AgentResponse, Message, MessageType
 from .events import HarnessHistoryItem, HarnessHistoryKind
 
@@ -129,15 +130,23 @@ class HarnessSessionBridge:
         messages: list[dict[str, Any]] = []
         for item in getattr(request, "input", None) or []:
             role = cls._enum_value(getattr(item, "role", None)) or "user"
-            blocks = cls._content_blocks(getattr(item, "content", None))
+            content = getattr(item, "content", None) or []
+            blocks = cls._content_blocks(content)
             if not blocks:
                 continue
+            # 保留客户端消息 ID。否则刷新历史时无法确认这条用户消息已经落盘，
+            # 前端会在助手回复后再补一次相同气泡。
             messages.append(
                 cls._msg_dump(
                     name=role,
                     role=role,
                     content=blocks,
                     backend=backend,
+                    extra=_request_message_metadata(
+                        role,
+                        getattr(item, "metadata", None),
+                        content,
+                    ),
                 ),
             )
         return messages

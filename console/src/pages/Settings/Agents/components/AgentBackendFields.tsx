@@ -5,7 +5,6 @@ import {
   Check,
   CircleAlert,
   CircleHelp,
-  Clock3,
   Copy,
   ExternalLink,
   LogOut,
@@ -26,7 +25,7 @@ import styles from "./AgentBackendFields.module.less";
 
 const POLL_INTERVAL_MS = 2_000;
 
-type ProviderId = "codex" | "qoder";
+type ProviderId = "codex" | "claude" | "qoder";
 
 interface ProviderOption {
   id: ProviderId;
@@ -55,6 +54,19 @@ const PROVIDERS: ProviderOption[] = [
     notFoundKey: "agent.backend.codexNotFound",
     authHintKey: "agent.backend.apiKeyLoginHint",
     connectKey: "harnesses.connect",
+  },
+  {
+    id: "claude",
+    name: "Claude Code",
+    hintKey: "agent.backend.claudeHint",
+    accountKey: "agent.backend.claudeAccount",
+    binaryKey: "agent.backend.claudeBinary",
+    binaryHelpKey: "agent.backend.claudeBinaryHelp",
+    binaryPlaceholderKey: "agent.backend.claudeBinaryPlaceholder",
+    detectedKey: "agent.backend.claudeDetectedBinary",
+    notFoundKey: "agent.backend.claudeNotFound",
+    authHintKey: "agent.backend.claudeAuthHint",
+    connectKey: "agent.backend.claudeConnect",
   },
   {
     id: "qoder",
@@ -308,16 +320,6 @@ export function AgentBackendFields({ form, open }: AgentBackendFieldsProps) {
                 </button>
               );
             })}
-            <div className={styles.providerCardDisabled}>
-              <span className={styles.providerIcon}>
-                <Blocks size={18} />
-              </span>
-              <span className={styles.providerCopy}>
-                <strong>Claude Code</strong>
-                <small>{t("harnesses.comingSoon")}</small>
-              </span>
-              <Clock3 size={14} />
-            </div>
           </div>
 
           <div className={styles.providerConfig}>
